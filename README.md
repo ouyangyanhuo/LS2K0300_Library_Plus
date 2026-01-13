@@ -39,7 +39,7 @@ LS2K0300 Library Plus 是逐飞派 LS2K0300 开源库的第三方维护版本。
 
 可以使用预先配置好的虚拟机环境：
 
-下载地址：[https://fmcf.cc](https://fmcf.cc)
+下载地址：[https://pan.baidu.com/s/1ZX_CRgnyoW9B2VThcUfnYQ?pwd=1234](https://pan.baidu.com/s/1ZX_CRgnyoW9B2VThcUfnYQ?pwd=1234)
 
 密码：`1`
 
@@ -185,8 +185,81 @@ LS2K0300_LibraryPlus/
 如有问题或建议，请通过以下方式联系：
 
 - 项目地址：[Github](https://github.com/ouyangyanhuo/LS2K0300_Library_Plus) & [Gitee](https://gitee.com/magneto110/LS2K0300_Library_Plus)
-- 问题反馈：提交 GitHub Issue
+- 问题反馈 & 功能增加：提交 GitHub Issue
 
+## 摄像头 & 图传 & 零拷贝图像 使用示例 
+```C++
+#include "zf_common_headfile.hpp"
+
+static bool running = true;
+
+/*---------------------------------------------------------------------
+ * @brief    信号处理函数
+ * @details  处理Ctrl+C和kill信号，优雅退出程序
+ *---------------------------------------------------------------------
+ */
+static void sigint_handler(int sign)
+{
+    running = false;
+}
+
+/*---------------------------------------------------------------------
+ * @brief    系统初始化
+ * @details  修改ctrl+c和kill的信号处理内容
+ *---------------------------------------------------------------------
+ */
+static void system_init(void)
+{
+    signal(SIGINT, sigint_handler);
+    signal(SIGTERM, sigint_handler);
+}
+
+int main(int, char**)
+{
+    // 系统信号初始化
+    system_init();
+
+    CameraStreamServer camera_server;
+    if (camera_server.start_server(9595) < 0)
+    {
+        std::cerr << "摄像头流服务器启动失败" << std::endl;
+        return -1;
+    }
+
+    // 等待服务器启动
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    // 启动摄像头 (160x120@60fps)
+    if (CamSet::configureCamera(0, 160, 120, 60, true) == false)
+    {
+        std::cerr << "摄像头配置失败" << std::endl;
+        return -1;
+    }
+
+
+    while (camera_server.is_running())
+    {
+        // 阻塞式等待图像刷新
+        if (CamSet::waitRefresh() == false)
+        {
+            break;
+        }
+
+        // 更新摄像头流
+        camera_server.update_frame(cam_data.frame_rgb);
+    }
+
+    // 释放摄像头资源
+    CamSet::release();
+
+    std::cout << "\n程序正常退出" << std::endl;
+    return 0;
+}
+
+```
+注意：
+- 当不使用图传时，请将`camera_server.is_running()`替换为`running`否则无法退出程序
+- 如果不调用释放摄像头资源的函数，程序将无法正常退出
 ---
 
 **LS2K0300 Library Plus** - 让嵌入式开发更简单！
